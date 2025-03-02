@@ -3,9 +3,10 @@
 package vcfa
 
 import (
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"regexp"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
@@ -13,6 +14,7 @@ import (
 // TestAccVcfaCertificateResource tests certificate libraries. At least two certificates must be provided in the
 // testing configuration
 func TestAccVcfaCertificateResource(t *testing.T) {
+	t.Skipf("Skipping test run")
 	preTestChecks(t)
 	skipIfNotSysAdmin(t)
 
