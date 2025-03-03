@@ -58,6 +58,7 @@ func init() {
 	setBoolFlag(&vcfaTestOrgUser, "vcfa-test-org-user", envVcfaTestOrgUser, "Run tests with org user")
 	setStringFlag(&vcfaSkipPattern, "vcfa-skip-pattern", "VCFA_SKIP_PATTERN", "Skip tests that match the pattern (implies vcfa-pre-post-checks")
 	setBoolFlag(&skipLeftoversRemoval, "vcfa-skip-leftovers-removal", "VCFA_SKIP_LEFTOVERS_REMOVAL", "Do not attempt removal of leftovers at the end of the test suite")
+	setBoolFlag(&onlyLeftoverRemoval, "vcfa-only-leftover-removal", "VCFA_ONLY_LEFTOVER_REMOVAL", "Only do leftover cleanup")
 	setBoolFlag(&silentLeftoversRemoval, "vcfa-silent-leftovers-removal", "VCFA_SILENT_LEFTOVERS_REMOVAL", "Omit details during removal of leftovers")
 	setStringFlag(&testListFileName, "vcfa-partition-tests-file", "VCFA_PARTITION_TESTS_FILE", "Name of the file containing the tests to run in the current partition node")
 	setIntFlag(&numberOfPartitions, "vcfa-partitions", "VCFA_PARTITIONS", "")
@@ -210,6 +211,7 @@ var (
 
 	// skipLeftoversRemoval skips the removal of leftovers at the end of the test suite
 	skipLeftoversRemoval = false
+	onlyLeftoverRemoval  = false
 
 	// silentLeftoversRemoval omits details while removing leftovers
 	silentLeftoversRemoval = false
@@ -739,6 +741,31 @@ func TestMain(m *testing.M) {
 		}
 	}
 
+	if onlyLeftoverRemoval {
+		if vcfaTestVerbose {
+			fmt.Println("# Running only leftover cleanup")
+		}
+		var exitCode int
+		tmClient, err := getTestVCFAFromJson(testConfig)
+		if err != nil {
+			fmt.Printf("error getting a govcd client: %s\n", err)
+			exitCode = 1
+		} else {
+			err = ProviderAuthenticate(tmClient, testConfig.Provider.User, testConfig.Provider.Password, testConfig.Provider.Token, testConfig.Provider.SysOrg, testConfig.Provider.ApiToken, testConfig.Provider.ApiTokenFile, testConfig.Provider.ServiceAccountTokenFile)
+			if err != nil {
+				fmt.Printf("error authenticating provider: %s\n", err)
+				exitCode = 1
+			}
+			err := removeLeftovers(tmClient, !silentLeftoversRemoval)
+			if err != nil {
+				fmt.Printf("error during leftover removal: %s\n", err)
+				exitCode = 1
+			}
+		}
+		// Exiting early
+		os.Exit(exitCode)
+	}
+
 	//
 	//
 	// t.Run()t.Run
@@ -964,10 +991,11 @@ func getOrCreateVCenter(tmClient *govcd.VCDClient) (*govcd.VCenter, func() error
 		return nil, nil, err
 	}
 
+	afterConnectedSleep := 4 * time.Second
 	if vcfaTestVerbose {
-		fmt.Printf("# Sleeping after vCenter is 'CONNECTED'\n")
+		fmt.Printf("# Sleeping %s after vCenter is 'CONNECTED' \n", afterConnectedSleep.String())
 	}
-	time.Sleep(4 * time.Second) // TODO: TM: Re-evaluate need for sleep
+	time.Sleep(afterConnectedSleep) // TODO: TM: Re-evaluate need for sleep
 	// Refresh connected vCenter to be sure that all artifacts are loaded
 	if vcfaTestVerbose {
 		fmt.Printf("# Refreshing vCenter %s\n", vc.VSphereVCenter.Url)
@@ -985,10 +1013,11 @@ func getOrCreateVCenter(tmClient *govcd.VCDClient) (*govcd.VCenter, func() error
 		return nil, nil, err
 	}
 
+	afterRefreshSleep := 30 * time.Second
 	if vcfaTestVerbose {
-		fmt.Printf("# Sleeping after vCenter refreshes\n")
+		fmt.Printf("# Sleeping %s after vCenter refreshes \n", afterRefreshSleep.String())
 	}
-	time.Sleep(1 * time.Minute) // TODO: TM: Re-evaluate need for sleep
+	time.Sleep(afterRefreshSleep) // TODO: TM: Re-evaluate need for sleep
 	vCenterCreated := true
 
 	return vc, func() error {
