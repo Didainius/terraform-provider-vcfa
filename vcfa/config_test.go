@@ -24,6 +24,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/vmware/go-vcloud-director/v3/govcd"
+	"github.com/vmware/go-vcloud-director/v3/types/v56"
 	"github.com/vmware/go-vcloud-director/v3/util"
 )
 
@@ -738,6 +739,24 @@ func TestMain(m *testing.M) {
 		}
 	}
 
+	//
+	//
+	// t.Run()t.Run
+
+	// Setup vCenter and NSX
+
+	// TestAccVcfaVcenter
+	// TestAccVcfaVcenterInvalid
+
+	//
+	//
+
+	cleanupFunc, err := setupVcAndNsx()
+	if err != nil {
+		fmt.Println("error setting up shared VC and NSX: %s", err)
+	}
+	defer cleanupFunc()
+
 	// Runs all test functions
 	exitCode := m.Run()
 
@@ -772,6 +791,225 @@ func TestMain(m *testing.M) {
 		}
 	}
 	os.Exit(exitCode)
+}
+
+func setupVcAndNsx() (func() error, error) {
+	tmClient := createSystemTemporaryVCFAConnection()
+	nsxManager, nsxCleanup, err := getOrCreateNsxtManager(tmClient.VCDClient)
+	if err != nil {
+		return nil, fmt.Errorf("got error after NSX Manager creation: %s", err)
+	}
+	if nsxManager == nil {
+		return nil, fmt.Errorf("nil NSX Manager after creation")
+	}
+
+	vc, vcCleanup, err := getOrCreateVCenter(tmClient.VCDClient)
+	if err != nil {
+		return nil, fmt.Errorf("got error after vCenter creation: %s", err)
+	}
+	if vc == nil {
+		return nil, fmt.Errorf("nil vCenter after creation")
+	}
+
+	cleanupFunc := func() error {
+		err := nsxCleanup()
+		if err != nil {
+			return fmt.Errorf("error cleaning up deferred NSX Manager: %s", err)
+		}
+		err = vcCleanup()
+		if err != nil {
+			return fmt.Errorf("error cleaning up deferred vCenter: %s", err)
+		}
+
+		return nil
+
+	}
+
+	return cleanupFunc, nil
+}
+
+func getOrCreateNsxtManager(tmClient *govcd.VCDClient) (*govcd.NsxtManagerOpenApi, func() error, error) {
+	nsxtManager, err := tmClient.GetNsxtManagerOpenApiByUrl(testConfig.Tm.NsxManagerUrl)
+	if err == nil {
+		return nsxtManager, nil, nil
+	}
+	if !govcd.ContainsNotFound(err) {
+		return nil, nil, err
+	}
+	if !testConfig.Tm.CreateNsxManager {
+		return nil, nil, fmt.Errorf("NSX manager creation disabled")
+	}
+
+	if vcfaTestVerbose {
+		fmt.Printf("# Will create NSX-T Manager %s\n", testConfig.Tm.NsxManagerUrl)
+	}
+	nsxtCfg := &types.NsxtManagerOpenApi{
+		Name:     "tf-shared-nsx",
+		Username: testConfig.Tm.NsxManagerUsername,
+		Password: testConfig.Tm.NsxManagerPassword,
+		Url:      testConfig.Tm.NsxManagerUrl,
+	}
+	// Certificate must be trusted before adding NSX-T Manager
+	url, err := url.Parse(nsxtCfg.Url)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = tmClient.AutoTrustHttpsCertificate(url, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	nsxtManager, err = tmClient.CreateNsxtManagerOpenApi(nsxtCfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	nsxtManagerCreated := true
+
+	return nsxtManager, func() error {
+		if !nsxtManagerCreated {
+			return nil
+		}
+		if vcfaTestVerbose {
+			fmt.Printf("# Deleting NSX-T Manager %s\n", nsxtManager.NsxtManagerOpenApi.Name)
+		}
+		err = nsxtManager.Delete()
+		if err != nil {
+			return err
+		}
+		return nil
+	}, nil
+}
+
+func getOrCreateVCenter(tmClient *govcd.VCDClient) (*govcd.VCenter, func() error, error) {
+	vc, err := tmClient.GetVCenterByUrl(testConfig.Tm.VcenterUrl)
+	if err == nil {
+		if !vc.VSphereVCenter.IsEnabled {
+			if vcfaTestVerbose {
+				fmt.Printf("# vCenter with %s found. Enabling it.\n", testConfig.Tm.VcenterUrl)
+			}
+			vc.VSphereVCenter.IsEnabled = true
+			vc, err = vc.Update(vc.VSphereVCenter)
+			if err != nil {
+				return nil, nil, err
+			}
+			err = waitForListenerStatusConnected(vc)
+			if err != nil {
+				return nil, nil, err
+			}
+			err = vc.Refresh()
+			if err != nil {
+				return nil, nil, err
+			}
+			err = vc.RefreshStorageProfiles()
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+
+		return vc, nil, nil
+	}
+	if !govcd.ContainsNotFound(err) {
+		return nil, nil, err
+	}
+	if !testConfig.Tm.CreateVcenter {
+		return nil, nil, fmt.Errorf("vCenter creation disabled")
+	}
+	if vcfaTestVerbose {
+		fmt.Printf("# Will create vCenter %s\n", testConfig.Tm.VcenterUrl)
+	}
+	vcCfg := &types.VSphereVirtualCenter{
+		Name:      "tf-shared-vc",
+		Username:  testConfig.Tm.VcenterUsername,
+		Password:  testConfig.Tm.VcenterPassword,
+		Url:       testConfig.Tm.VcenterUrl,
+		IsEnabled: true,
+	}
+	// Certificate must be trusted before adding vCenter
+	url, err := url.Parse(vcCfg.Url)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = vcd.client.AutoTrustHttpsCertificate(url, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	vc, err = tmClient.CreateVcenter(vcCfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if vcfaTestVerbose {
+		fmt.Printf("# Waiting for listener status to become 'CONNECTED'\n")
+	}
+	err = waitForListenerStatusConnected(vc)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if vcfaTestVerbose {
+		fmt.Printf("# Sleeping after vCenter is 'CONNECTED'\n")
+	}
+	time.Sleep(4 * time.Second) // TODO: TM: Re-evaluate need for sleep
+	// Refresh connected vCenter to be sure that all artifacts are loaded
+	if vcfaTestVerbose {
+		fmt.Printf("# Refreshing vCenter %s\n", vc.VSphereVCenter.Url)
+	}
+	err = vc.RefreshVcenter()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if vcfaTestVerbose {
+		fmt.Printf("# Refreshing Storage Profiles in vCenter %s\n", vc.VSphereVCenter.Url)
+	}
+	err = vc.RefreshStorageProfiles()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if vcfaTestVerbose {
+		fmt.Printf("# Sleeping after vCenter refreshes\n")
+	}
+	time.Sleep(1 * time.Minute) // TODO: TM: Re-evaluate need for sleep
+	vCenterCreated := true
+
+	return vc, func() error {
+		if !vCenterCreated {
+			return nil
+		}
+		if vcfaTestVerbose {
+			fmt.Printf("# Disabling and deleting vCenter %s\n", vcd.config.Tm.VcenterUrl)
+		}
+		err = vc.Disable()
+		if err != nil {
+			return err
+		}
+		err = vc.Delete()
+		if err != nil {
+			return err
+		}
+		return nil
+	}, nil
+}
+
+func waitForListenerStatusConnected(v *govcd.VCenter) error {
+	startTime := time.Now()
+	tryCount := 20
+	for c := 0; c < tryCount; c++ {
+		err := v.Refresh()
+		if err != nil {
+			return fmt.Errorf("error refreshing vCenter: %s", err)
+		}
+
+		if v.VSphereVCenter.ListenerState == "CONNECTED" {
+			return nil
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+
+	return fmt.Errorf("waiting for listener state to become 'CONNECTED' expired after %d tries (%d seconds), got '%s'",
+		tryCount, int(time.Since(startTime)/time.Second), v.VSphereVCenter.ListenerState)
 }
 
 // Creates a VCDClient based on the endpoint given in the TestConfig argument.

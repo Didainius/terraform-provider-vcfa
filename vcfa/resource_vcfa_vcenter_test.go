@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-func TestAccVcfaVcenter(t *testing.T) {
+func testAccVcfaVcenter(t *testing.T) {
 	preTestChecks(t)
 	skipIfNotSysAdmin(t)
 
@@ -178,7 +178,7 @@ data "vcfa_vcenter" "test" {
 }
 `
 
-func TestAccVcfaVcenterInvalid(t *testing.T) {
+func testAccVcfaVcenterInvalid(t *testing.T) {
 	preTestChecks(t)
 	skipIfNotSysAdmin(t)
 
