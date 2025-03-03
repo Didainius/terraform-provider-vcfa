@@ -751,14 +751,29 @@ func TestMain(m *testing.M) {
 	//
 	//
 
+	// * testAccVcfaVcenter
+	// * testAccVcfaVcenterInvalid
+	// * testAccVcfaNsxManager
+
+	if vcfaTestVerbose {
+		fmt.Println("# Will setup vCenter and NSX Manager")
+	}
 	cleanupFunc, err := setupVcAndNsx()
 	if err != nil {
-		fmt.Println("error setting up shared VC and NSX: %s", err)
+		fmt.Printf("error setting up shared VC and NSX: %s", err)
 	}
-	defer cleanupFunc()
+	if vcfaTestVerbose {
+		fmt.Println("# Done")
+	}
 
 	// Runs all test functions
 	exitCode := m.Run()
+
+	// cannot defer cleanup, because os.Exit below does not run deferred functions
+	err = cleanupFunc()
+	if err != nil {
+		fmt.Printf("# got error while cleaning up vCenter / NSX Manager: %s", err)
+	}
 
 	if numberOfPartitions != 0 {
 		entTestFileName := getTestFileName("end", testConfig.Provider.TmVersion)
@@ -812,6 +827,9 @@ func setupVcAndNsx() (func() error, error) {
 	}
 
 	cleanupFunc := func() error {
+		if vcfaTestVerbose {
+			fmt.Println("# Cleaning up shared vCenter and NSX Manager")
+		}
 		err := nsxCleanup()
 		if err != nil {
 			return fmt.Errorf("error cleaning up deferred NSX Manager: %s", err)
@@ -844,7 +862,7 @@ func getOrCreateNsxtManager(tmClient *govcd.VCDClient) (*govcd.NsxtManagerOpenAp
 		fmt.Printf("# Will create NSX-T Manager %s\n", testConfig.Tm.NsxManagerUrl)
 	}
 	nsxtCfg := &types.NsxtManagerOpenApi{
-		Name:     "tf-shared-nsx",
+		Name:     "test-tf-shared-nsx",
 		Username: testConfig.Tm.NsxManagerUsername,
 		Password: testConfig.Tm.NsxManagerPassword,
 		Url:      testConfig.Tm.NsxManagerUrl,
@@ -917,7 +935,7 @@ func getOrCreateVCenter(tmClient *govcd.VCDClient) (*govcd.VCenter, func() error
 		fmt.Printf("# Will create vCenter %s\n", testConfig.Tm.VcenterUrl)
 	}
 	vcCfg := &types.VSphereVirtualCenter{
-		Name:      "tf-shared-vc",
+		Name:      "test-tf-shared-vc",
 		Username:  testConfig.Tm.VcenterUsername,
 		Password:  testConfig.Tm.VcenterPassword,
 		Url:       testConfig.Tm.VcenterUrl,
@@ -928,7 +946,7 @@ func getOrCreateVCenter(tmClient *govcd.VCDClient) (*govcd.VCenter, func() error
 	if err != nil {
 		return nil, nil, err
 	}
-	_, err = vcd.client.AutoTrustHttpsCertificate(url, nil)
+	_, err = tmClient.AutoTrustHttpsCertificate(url, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -978,7 +996,7 @@ func getOrCreateVCenter(tmClient *govcd.VCDClient) (*govcd.VCenter, func() error
 			return nil
 		}
 		if vcfaTestVerbose {
-			fmt.Printf("# Disabling and deleting vCenter %s\n", vcd.config.Tm.VcenterUrl)
+			fmt.Printf("# Disabling and deleting vCenter %s\n", testConfig.Tm.VcenterUrl)
 		}
 		err = vc.Disable()
 		if err != nil {
