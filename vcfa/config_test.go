@@ -782,25 +782,32 @@ func TestMain(m *testing.M) {
 	// * testAccVcfaVcenterInvalid
 	// * testAccVcfaNsxManager
 
-	if vcfaTestVerbose {
-		fmt.Println("# Will setup vCenter and NSX Manager")
-	}
-	cleanupFunc, err := setupVcAndNsx()
-	if err != nil {
-		fmt.Printf("error setting up shared VC and NSX: %s", err)
-	}
-	if vcfaTestVerbose {
-		fmt.Println("# Done")
-	}
+	// if vcfaTestVerbose {
+	// 	fmt.Println("# Will setup vCenter and NSX Manager")
+	// }
+	// cleanupFunc, err := setupVcAndNsx()
+	// if err != nil {
+	// 	fmt.Printf("error setting up shared VC and NSX: %s", err)
+	// }
+	// if vcfaTestVerbose {
+	// 	fmt.Println("# Done")
+	// }
 
 	// Runs all test functions
 	exitCode := m.Run()
 
-	// cannot defer cleanup, because os.Exit below does not run deferred functions
-	err = cleanupFunc()
-	if err != nil {
-		fmt.Printf("# got error while cleaning up vCenter / NSX Manager: %s", err)
+	if priorityTestCleanupFunc != nil {
+		err := priorityTestCleanupFunc()
+		if err != nil {
+			fmt.Printf("# got error while cleaning up vCenter / NSX Manager: %s", err)
+		}
 	}
+
+	// cannot defer cleanup, because os.Exit below does not run deferred functions
+	// err = cleanupFunc()
+	// if err != nil {
+	// 	fmt.Printf("# got error while cleaning up vCenter / NSX Manager: %s", err)
+	// }
 
 	if numberOfPartitions != 0 {
 		entTestFileName := getTestFileName("end", testConfig.Provider.TmVersion)
@@ -1174,6 +1181,12 @@ func preTestChecks(t *testing.T) {
 			t.Skip("only running tests that have failed at the previous run")
 		}
 	}
+
+	// Run priority tests that are responsible for testing core components before they are
+	// precreated for sharing between other tests:
+	// * vCenter
+	// * NSX Manager
+	testAccPriority(t)
 }
 
 // postTestChecks runs checks after the test

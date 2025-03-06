@@ -3,11 +3,83 @@
 package vcfa
 
 import (
+	"fmt"
 	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
+
+var doOnceFirstTests sync.Once
+
+// type firstTests struct {
+// 	// runOnce   sync.Once
+// 	// setupOnce sync.Once
+// 	t     *testing.T
+// 	tests []testEntry
+// }
+
+// type testEntry struct {
+// 	Name     string
+// 	testFunc func(*testing.T)
+// }
+
+var priorityTestCleanupFunc func() error
+
+func testAccPriority(t *testing.T) {
+	doOnceFirstTests.Do(func() {
+		firstTestAcc(t)
+	})
+}
+
+func firstTestAcc(t *testing.T) {
+	tests := []func(*testing.T){
+		TestAccVcfaNsxManager,
+		TestAccVcfaVcenter,
+		TestAccVcfaVcenterInvalid,
+	}
+
+	for index, test := range tests {
+		t.Run(fmt.Sprintf("%d ", index), test)
+	}
+
+	// doOnceTestAccVcfaVcenter.Do(func() {
+	// 	t.Run("TestAccVcfaVcenter", testAccVcfaVcenter)
+	// })
+
+	// setup shared things for other tests
+
+	if vcfaTestVerbose {
+		fmt.Println("# Will setup vCenter and NSX Manager")
+	}
+	cleanup, err := setupVcAndNsx()
+	if err != nil {
+		fmt.Printf("error setting up shared VC and NSX: %s", err)
+	}
+
+	priorityTestCleanupFunc = cleanup
+
+	// priorityTestCleanupFunc = func(t *testing.T) {
+	// 	err = cleanupFunc()
+	// 	if err != nil {
+	// 		t.Errorf("error cleaning up: %s", err)
+	// 	}
+	// }
+
+	if vcfaTestVerbose {
+		fmt.Println("# Done")
+	}
+
+}
+
+var doOnceTestAccVcfaVcenter sync.Once
+
+func TestAccVcfaVcenter(t *testing.T) {
+	doOnceTestAccVcfaVcenter.Do(func() {
+		t.Run("TestAccVcfaVcenter", testAccVcfaVcenter)
+	})
+}
 
 func testAccVcfaVcenter(t *testing.T) {
 	preTestChecks(t)
@@ -177,6 +249,14 @@ data "vcfa_vcenter" "test" {
   name = vcfa_vcenter.test.name
 }
 `
+
+var doOnceTestAccVcfaVcenterInvalid sync.Once
+
+func TestAccVcfaVcenterInvalid(t *testing.T) {
+	doOnceTestAccVcfaVcenter.Do(func() {
+		t.Run("TestAccVcfaVcenterInvalid", testAccVcfaVcenterInvalid)
+	})
+}
 
 func testAccVcfaVcenterInvalid(t *testing.T) {
 	preTestChecks(t)

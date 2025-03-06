@@ -4,10 +4,19 @@ package vcfa
 
 import (
 	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
+
+var doOnceTestAccVcfaNsxManager sync.Once
+
+func TestAccVcfaNsxManager(t *testing.T) {
+	doOnceTestAccVcfaNsxManager.Do(func() {
+		t.Run("TestAccVcfaNsxManager", testAccVcfaNsxManager)
+	})
+}
 
 func testAccVcfaNsxManager(t *testing.T) {
 	preTestChecks(t)
