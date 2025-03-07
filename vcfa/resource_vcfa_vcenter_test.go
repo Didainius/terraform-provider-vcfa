@@ -28,20 +28,30 @@ var doOnceFirstTests sync.Once
 var priorityTestCleanupFunc func() error
 
 func testAccPriority(t *testing.T) {
-	doOnceFirstTests.Do(func() {
-		firstTestAcc(t)
-	})
+	firstTestAcc(t)
+
+	// testList := []string{"TestAccVcfaNsxManager", "TestAccVcfaVcenter", "TestAccVcfaVcenterInvalid"}
+	// if slices.Contains(testList, t.Name()) {
+	// 	return
+	// }
+	// doOnceFirstTests.Do(func() {
+	// 	fmt.Println("doOnceFirstTests.Do")
+	// 	firstTestAcc(t)
+	// })
 }
 
 func firstTestAcc(t *testing.T) {
+	// Run the shared tests as subtests in whic
 	tests := []func(*testing.T){
 		TestAccVcfaNsxManager,
 		TestAccVcfaVcenter,
-		TestAccVcfaVcenterInvalid,
+		// TestAccVcfaVcenterInvalid,
 	}
 
 	for index, test := range tests {
-		t.Run(fmt.Sprintf("%d ", index), test)
+		fmt.Printf("Running priority test %d:\n", index)
+		// t.Run(fmt.Sprintf("%d ", index), test)
+		test(t)
 	}
 
 	// doOnceTestAccVcfaVcenter.Do(func() {
@@ -76,8 +86,11 @@ func firstTestAcc(t *testing.T) {
 var doOnceTestAccVcfaVcenter sync.Once
 
 func TestAccVcfaVcenter(t *testing.T) {
+	// testAccVcfaVcenter(t)
 	doOnceTestAccVcfaVcenter.Do(func() {
-		t.Run("TestAccVcfaVcenter", testAccVcfaVcenter)
+		fmt.Println("doOnceTestAccVcfaVcenter.Do")
+		// t.Run("TestAccVcfaVcenter", testAccVcfaVcenter)
+		testAccVcfaVcenter(t)
 	})
 }
 

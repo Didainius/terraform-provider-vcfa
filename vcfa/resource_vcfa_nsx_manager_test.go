@@ -13,8 +13,10 @@ import (
 var doOnceTestAccVcfaNsxManager sync.Once
 
 func TestAccVcfaNsxManager(t *testing.T) {
+	// testAccVcfaNsxManager(t)
 	doOnceTestAccVcfaNsxManager.Do(func() {
-		t.Run("TestAccVcfaNsxManager", testAccVcfaNsxManager)
+		// t.Run("TestAccVcfaNsxManager", testAccVcfaNsxManager)
+		testAccVcfaNsxManager(t)
 	})
 }
 

@@ -1138,6 +1138,14 @@ func timeStamp() string {
 //     contains a pattern that matches the test name.
 //  6. If the flag -vcfa-re-run-failed is true, it will only run the tests that failed in the previous run
 func preTestChecks(t *testing.T) {
+	// Run priority tests that are responsible for testing core components before they are
+	// precreated for sharing between other tests:
+	// * vCenter
+	// * NSX Manager
+	fmt.Println("START triggering priority tests")
+	testAccPriority(t)
+	fmt.Println("END triggering priority tests")
+
 	handlePartitioning(testConfig.Provider.TmVersion, testConfig.Provider.Url, t)
 	// if the test runs without -vcfa-pre-post-checks, all post-checks will be skipped
 	if !vcfaPrePostChecks {
@@ -1181,12 +1189,6 @@ func preTestChecks(t *testing.T) {
 			t.Skip("only running tests that have failed at the previous run")
 		}
 	}
-
-	// Run priority tests that are responsible for testing core components before they are
-	// precreated for sharing between other tests:
-	// * vCenter
-	// * NSX Manager
-	testAccPriority(t)
 }
 
 // postTestChecks runs checks after the test
