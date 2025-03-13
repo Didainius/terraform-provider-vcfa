@@ -98,12 +98,13 @@ type TestConfig struct {
 		SupervisorZone string `json:"supervisorZone"`
 	} `json:"cci"`
 	Tm struct {
-		Org             string   `json:"org"`
-		CreateRegion    bool     `json:"createRegion"`
-		Region          string   `json:"region"`
-		StorageClass    string   `json:"storageClass"`
-		RegionVmClasses []string `json:"regionVmClasses"`
-		ContentLibrary  string   `json:"contentLibrary"`
+		Org                           string   `json:"org"`
+		CreateRegion                  bool     `json:"createRegion"`
+		Region                        string   `json:"region"`
+		StorageClass                  string   `json:"storageClass"`
+		RegionVmClasses               []string `json:"regionVmClasses"`
+		ContentLibrary                string   `json:"contentLibrary"`
+		SubscriptionContentLibraryUrl string   `json:"subscriptionContentLibraryUrl"`
 
 		CreateNsxManager   bool   `json:"createNsxManager"`
 		NsxManagerUsername string `json:"nsxManagerUsername"`
@@ -1197,6 +1198,23 @@ func preTestChecks(t *testing.T) {
 // 2) stores file name in the "pass" or "fail" list, depending on their outcome. The lists are distinct by VCFA IP
 // 3) increments the pass/fail counters
 func postTestChecks(t *testing.T) {
+	if t.Failed() && !skipLeftoversRemoval {
+		tmClient, err := getTestVCFAFromJson(testConfig)
+		if err != nil {
+			t.Logf("error getting a govcd client: %s\n", err)
+
+		} else {
+			err = ProviderAuthenticate(tmClient, testConfig.Provider.User, testConfig.Provider.Password, testConfig.Provider.Token, testConfig.Provider.SysOrg, testConfig.Provider.ApiToken, testConfig.Provider.ApiTokenFile, testConfig.Provider.ServiceAccountTokenFile)
+			if err != nil {
+				t.Logf("error authenticating provider: %s\n", err)
+			}
+			err := removeLeftovers(tmClient, !silentLeftoversRemoval)
+			if err != nil {
+				t.Logf("error during leftover removal: %s\n", err)
+			}
+		}
+	}
+
 	// if the test runs without -vcfa-pre-post-checks, all post-checks will be skipped
 	if !vcfaPrePostChecks {
 		return

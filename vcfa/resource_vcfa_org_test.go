@@ -11,6 +11,7 @@ import (
 
 func TestAccVcfaOrg(t *testing.T) {
 	preTestChecks(t)
+	defer postTestChecks(t)
 	skipIfNotSysAdmin(t)
 
 	var params = StringMap{
@@ -58,12 +59,20 @@ func TestAccVcfaOrg(t *testing.T) {
 					resource.TestMatchResourceAttr("vcfa_org.test", "managed_by_id", regexp.MustCompile("^urn:vcloud:org:")),
 					resource.TestCheckResourceAttr("vcfa_org.test", "managed_by_name", "System"),
 					resource.TestCheckResourceAttr("vcfa_org.test", "is_classic_tenant", "false"),
+
+					// Test Organization settings
+					resource.TestCheckResourceAttr("vcfa_org_settings.allow", "can_create_subscribed_libraries", "true"),
+					resource.TestCheckResourceAttr("vcfa_org_settings.allow", "quarantine_content_library_items", "true"),
 				),
 			},
 			{
 				Config: configText3,
 				Check: resource.ComposeTestCheckFunc(
 					resourceFieldsEqual("vcfa_org.test", "data.vcfa_org.test", nil),
+
+					// Settings are destroyed
+					resource.TestCheckResourceAttr("data.vcfa_org_settings.allow_ds", "can_create_subscribed_libraries", "false"),
+					resource.TestCheckResourceAttr("data.vcfa_org_settings.allow_ds", "quarantine_content_library_items", "false"),
 				),
 			},
 			{
@@ -74,8 +83,6 @@ func TestAccVcfaOrg(t *testing.T) {
 			},
 		},
 	})
-
-	postTestChecks(t)
 }
 
 const testAccVcfaOrgStep1 = `
@@ -94,17 +101,28 @@ resource "vcfa_org" "test" {
   description  = ""
   is_enabled   = false
 }
+
+resource "vcfa_org_settings" "allow" {
+  org_id                           = vcfa_org.test.id
+  can_create_subscribed_libraries  = true
+  quarantine_content_library_items = true
+}
 `
 
 const testAccVcfaOrgStep3DS = testAccVcfaOrgStep1 + `
 data "vcfa_org" "test" {
   name = vcfa_org.test.name
 }
+
+data "vcfa_org_settings" "allow_ds" {
+  org_id = vcfa_org.test.id
+}
 `
 
 // TestAccVcfaOrgClassicTenant tests a Tenant Manager Organization configured as "Classic Tenant"
 func TestAccVcfaOrgClassicTenant(t *testing.T) {
 	preTestChecks(t)
+	defer postTestChecks(t)
 	skipIfNotSysAdmin(t)
 
 	var params = StringMap{
@@ -153,8 +171,6 @@ func TestAccVcfaOrgClassicTenant(t *testing.T) {
 			},
 		},
 	})
-
-	postTestChecks(t)
 }
 
 const testAccVcfaOrgClassicStep1 = `

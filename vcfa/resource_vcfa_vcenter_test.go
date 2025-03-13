@@ -96,6 +96,7 @@ func TestAccVcfaVcenter(t *testing.T) {
 
 func testAccVcfaVcenter(t *testing.T) {
 	preTestChecks(t)
+	defer postTestChecks(t)
 	skipIfNotSysAdmin(t)
 
 	if !testConfig.Tm.CreateVcenter {
@@ -203,8 +204,6 @@ func testAccVcfaVcenter(t *testing.T) {
 			},
 		},
 	})
-
-	postTestChecks(t)
 }
 
 const testAccVcfaVcenterPrerequisites = `
@@ -273,6 +272,7 @@ func TestAccVcfaVcenterInvalid(t *testing.T) {
 
 func testAccVcfaVcenterInvalid(t *testing.T) {
 	preTestChecks(t)
+	defer postTestChecks(t)
 	skipIfNotSysAdmin(t)
 
 	// test fails on purpose
@@ -331,6 +331,4 @@ func testAccVcfaVcenterInvalid(t *testing.T) {
 			},
 		},
 	})
-
-	postTestChecks(t)
 }
