@@ -14,10 +14,10 @@ var doOnceTestAccVcfaNsxManager sync.Once
 
 func TestAccVcfaNsxManager(t *testing.T) {
 	// testAccVcfaNsxManager(t)
-	doOnceTestAccVcfaNsxManager.Do(func() {
-		// t.Run("TestAccVcfaNsxManager", testAccVcfaNsxManager)
-		testAccVcfaNsxManager(t)
-	})
+	// doOnceTestAccVcfaNsxManager.Do(func() {
+	// t.Run("TestAccVcfaNsxManager", testAccVcfaNsxManager)
+	testAccVcfaNsxManager(t)
+	// })
 }
 
 func testAccVcfaNsxManager(t *testing.T) {

@@ -1139,6 +1139,16 @@ func timeStamp() string {
 //     contains a pattern that matches the test name.
 //  6. If the flag -vcfa-re-run-failed is true, it will only run the tests that failed in the previous run
 func preTestChecks(t *testing.T) {
+	// Never execute a test twice
+	if testSucceeded, isSet := executedTests.Load(t.Name()); isSet {
+		if !testSucceeded.(bool) {
+			t.Logf("%s already FAILED", t.Name())
+			t.FailNow()
+		} else {
+			t.Skipf("%s already run with priority", t.Name())
+		}
+	}
+
 	// Run priority tests that are responsible for testing core components before they are
 	// precreated for sharing between other tests:
 	// * vCenter
@@ -1198,6 +1208,10 @@ func preTestChecks(t *testing.T) {
 // 2) stores file name in the "pass" or "fail" list, depending on their outcome. The lists are distinct by VCFA IP
 // 3) increments the pass/fail counters
 func postTestChecks(t *testing.T) {
+	// store executed test by name and if it succeeded
+	fmt.Printf("# postTestChecks storing testname %s state\n", t.Name())
+	executedTests.Store(t.Name(), !t.Failed())
+
 	if t.Failed() && !skipLeftoversRemoval {
 		tmClient, err := getTestVCFAFromJson(testConfig)
 		if err != nil {

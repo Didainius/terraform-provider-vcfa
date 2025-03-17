@@ -4,14 +4,24 @@ package vcfa
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
+	"runtime"
 	"sync"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-var doOnceFirstTests sync.Once
+var priorityTests sync.Map
+
+var executedTests sync.Map
+
+func init() {
+	// priorityTests.Store("executed", false)
+}
+
+// var doOnceFirstTests sync.Once
 
 // type firstTests struct {
 // 	// runOnce   sync.Once
@@ -28,16 +38,17 @@ var doOnceFirstTests sync.Once
 var priorityTestCleanupFunc func() error
 
 func testAccPriority(t *testing.T) {
-	firstTestAcc(t)
+	fmt.Println("testAccPriority")
+	_, executed := priorityTests.LoadOrStore("executed", true)
+	fmt.Println("testAccPriority ", executed)
+	if !executed {
+		firstTestAcc(t)
+	}
+	fmt.Println("Done")
+}
 
-	// testList := []string{"TestAccVcfaNsxManager", "TestAccVcfaVcenter", "TestAccVcfaVcenterInvalid"}
-	// if slices.Contains(testList, t.Name()) {
-	// 	return
-	// }
-	// doOnceFirstTests.Do(func() {
-	// 	fmt.Println("doOnceFirstTests.Do")
-	// 	firstTestAcc(t)
-	// })
+func GetFunctionName(i interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
 func firstTestAcc(t *testing.T) {
@@ -48,10 +59,13 @@ func firstTestAcc(t *testing.T) {
 		// TestAccVcfaVcenterInvalid,
 	}
 
+	testNames := []string{"TestAccVcfaNsxManager", "TestAccVcfaVcenter"}
+
 	for index, test := range tests {
-		fmt.Printf("Running priority test %d:\n", index)
+		fmt.Printf("Running priority test %d %s = %s:\n", index, GetFunctionName(test), testNames[index])
 		// t.Run(fmt.Sprintf("%d ", index), test)
 		test(t)
+		executedTests.Store(testNames[index], !t.Failed())
 	}
 
 	// doOnceTestAccVcfaVcenter.Do(func() {
@@ -78,23 +92,23 @@ func firstTestAcc(t *testing.T) {
 	// }
 
 	if vcfaTestVerbose {
-		fmt.Println("# Done")
+		fmt.Println("# Done firstTestAcc")
 	}
 
 }
 
 var doOnceTestAccVcfaVcenter sync.Once
 
-func TestAccVcfaVcenter(t *testing.T) {
-	// testAccVcfaVcenter(t)
-	doOnceTestAccVcfaVcenter.Do(func() {
-		fmt.Println("doOnceTestAccVcfaVcenter.Do")
-		// t.Run("TestAccVcfaVcenter", testAccVcfaVcenter)
-		testAccVcfaVcenter(t)
-	})
-}
+// func TestAccVcfaVcenter(t *testing.T) {
+// 	// testAccVcfaVcenter(t)
+// 	// doOnceTestAccVcfaVcenter.Do(func() {
+// 	// 	fmt.Println("doOnceTestAccVcfaVcenter.Do")
+// 	// t.Run("TestAccVcfaVcenter", testAccVcfaVcenter)
+// 	testAccVcfaVcenter(t)
+// 	// })
+// }
 
-func testAccVcfaVcenter(t *testing.T) {
+func TestAccVcfaVcenter(t *testing.T) {
 	preTestChecks(t)
 	defer postTestChecks(t)
 	skipIfNotSysAdmin(t)
@@ -262,15 +276,16 @@ data "vcfa_vcenter" "test" {
 }
 `
 
-var doOnceTestAccVcfaVcenterInvalid sync.Once
+// var doOnceTestAccVcfaVcenterInvalid sync.Once
+
+// func TestAccVcfaVcenterInvalid(t *testing.T) {
+// 	// doOnceTestAccVcfaVcenter.Do(func() {
+// 	// t.Run("TestAccVcfaVcenterInvalid", testAccVcfaVcenterInvalid)
+// 	testAccVcfaVcenterInvalid(t)
+// 	// })
+// }
 
 func TestAccVcfaVcenterInvalid(t *testing.T) {
-	doOnceTestAccVcfaVcenter.Do(func() {
-		t.Run("TestAccVcfaVcenterInvalid", testAccVcfaVcenterInvalid)
-	})
-}
-
-func testAccVcfaVcenterInvalid(t *testing.T) {
 	preTestChecks(t)
 	defer postTestChecks(t)
 	skipIfNotSysAdmin(t)
