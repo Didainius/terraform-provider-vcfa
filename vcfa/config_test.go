@@ -49,7 +49,8 @@ func init() {
 	setBoolFlag(&vcfaReRunFailed, "vcfa-re-run-failed", "VCFA_RE_RUN_FAILED", "Run only tests that failed in a previous run")
 	setBoolFlag(&testDistributedNetworks, "vcfa-test-distributed", "", "enables testing of distributed network")
 	setBoolFlag(&enableDebug, "vcfa-debug", "GOVCD_DEBUG", "enables debug output")
-	setBoolFlag(&vcfaTestVerbose, "vcfa-verbose", "TEST_VERBOSE", "enables verbose output")
+	setBoolFlag(&vcfaTestVerbose, "vcfa-verbose", "VCFA_TEST_VERBOSE", "enables verbose output")
+	setBoolFlag(&vcfaTestTrace, "vcfa-test-trace", "VCFA_TEST_TRACE", "enables verbose output")
 	setBoolFlag(&enableTrace, "vcfa-trace", "GOVCD_TRACE", "enables function calls tracing")
 	setBoolFlag(&vcfaShortTest, "vcfa-short", "VCFA_SHORT_TEST", "runs short test")
 	setBoolFlag(&vcfaAddProvider, "vcfa-add-provider", envVcfaAddProvider, "add provider to test scripts")
@@ -330,6 +331,7 @@ func templateFill(tmpl string, inputData StringMap) string {
 	realCaller := caller
 	// Removes the full path to the function, leaving only package + function name
 	caller = filepath.Base(caller)
+	caller = strings.ReplaceAll(caller, "/", "-")
 
 	_, callerFileName, _, _ := runtime.Caller(1)
 	// First, we get all variables in the pattern {{.VarName}}
@@ -767,48 +769,16 @@ func TestMain(m *testing.M) {
 		os.Exit(exitCode)
 	}
 
-	//
-	//
-	// t.Run()t.Run
-
-	// Setup vCenter and NSX
-
-	// TestAccVcfaVcenter
-	// TestAccVcfaVcenterInvalid
-
-	//
-	//
-
-	// * testAccVcfaVcenter
-	// * testAccVcfaVcenterInvalid
-	// * testAccVcfaNsxManager
-
-	// if vcfaTestVerbose {
-	// 	fmt.Println("# Will setup vCenter and NSX Manager")
-	// }
-	// cleanupFunc, err := setupVcAndNsx()
-	// if err != nil {
-	// 	fmt.Printf("error setting up shared VC and NSX: %s", err)
-	// }
-	// if vcfaTestVerbose {
-	// 	fmt.Println("# Done")
-	// }
-
 	// Runs all test functions
 	exitCode := m.Run()
 
+	// If there were some priority tests - cleanup their things
 	if priorityTestCleanupFunc != nil {
 		err := priorityTestCleanupFunc()
 		if err != nil {
 			fmt.Printf("# got error while cleaning up vCenter / NSX Manager: %s", err)
 		}
 	}
-
-	// cannot defer cleanup, because os.Exit below does not run deferred functions
-	// err = cleanupFunc()
-	// if err != nil {
-	// 	fmt.Printf("# got error while cleaning up vCenter / NSX Manager: %s", err)
-	// }
 
 	if numberOfPartitions != 0 {
 		entTestFileName := getTestFileName("end", testConfig.Provider.TmVersion)
@@ -1153,9 +1123,7 @@ func preTestChecks(t *testing.T) {
 	// precreated for sharing between other tests:
 	// * vCenter
 	// * NSX Manager
-	fmt.Println("START triggering priority tests")
 	testAccPriority(t)
-	fmt.Println("END triggering priority tests")
 
 	handlePartitioning(testConfig.Provider.TmVersion, testConfig.Provider.Url, t)
 	// if the test runs without -vcfa-pre-post-checks, all post-checks will be skipped
@@ -1403,4 +1371,16 @@ provider "vcfa" {
 		return ""
 	}
 	return buf.String()
+}
+
+func printfVerbose(format string, args ...interface{}) {
+	if vcfaTestVerbose {
+		fmt.Printf(format, args...)
+	}
+}
+
+func printfTrace(format string, args ...interface{}) {
+	if vcfaTestTrace {
+		fmt.Printf(format, args...)
+	}
 }

@@ -4,9 +4,7 @@ package vcfa
 
 import (
 	"fmt"
-	"reflect"
 	"regexp"
-	"runtime"
 	"sync"
 	"testing"
 
@@ -21,34 +19,15 @@ func init() {
 	// priorityTests.Store("executed", false)
 }
 
-// var doOnceFirstTests sync.Once
-
-// type firstTests struct {
-// 	// runOnce   sync.Once
-// 	// setupOnce sync.Once
-// 	t     *testing.T
-// 	tests []testEntry
-// }
-
-// type testEntry struct {
-// 	Name     string
-// 	testFunc func(*testing.T)
-// }
-
 var priorityTestCleanupFunc func() error
 
 func testAccPriority(t *testing.T) {
-	fmt.Println("testAccPriority")
 	_, executed := priorityTests.LoadOrStore("executed", true)
-	fmt.Println("testAccPriority ", executed)
 	if !executed {
+		printfVerbose("# triggering priority tests")
 		firstTestAcc(t)
+		printfVerbose("# priority tests finished")
 	}
-	fmt.Println("Done")
-}
-
-func GetFunctionName(i interface{}) string {
-	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
 func firstTestAcc(t *testing.T) {
@@ -62,53 +41,24 @@ func firstTestAcc(t *testing.T) {
 	testNames := []string{"TestAccVcfaNsxManager", "TestAccVcfaVcenter"}
 
 	for index, test := range tests {
-		fmt.Printf("Running priority test %d %s = %s:\n", index, GetFunctionName(test), testNames[index])
-		// t.Run(fmt.Sprintf("%d ", index), test)
-		test(t)
+		fmt.Printf("Running priority test %s as a subtest of %s:\n", testNames[index], t.Name())
+		t.Run(testNames[index], test)
 		executedTests.Store(testNames[index], !t.Failed())
 	}
 
-	// doOnceTestAccVcfaVcenter.Do(func() {
-	// 	t.Run("TestAccVcfaVcenter", testAccVcfaVcenter)
-	// })
-
 	// setup shared things for other tests
 
-	if vcfaTestVerbose {
-		fmt.Println("# Will setup vCenter and NSX Manager")
-	}
+	printfVerbose("# Will setup vCenter and NSX Manager\n")
 	cleanup, err := setupVcAndNsx()
 	if err != nil {
 		fmt.Printf("error setting up shared VC and NSX: %s", err)
 	}
 
 	priorityTestCleanupFunc = cleanup
-
-	// priorityTestCleanupFunc = func(t *testing.T) {
-	// 	err = cleanupFunc()
-	// 	if err != nil {
-	// 		t.Errorf("error cleaning up: %s", err)
-	// 	}
-	// }
-
-	if vcfaTestVerbose {
-		fmt.Println("# Done firstTestAcc")
-	}
-
 }
 
-var doOnceTestAccVcfaVcenter sync.Once
-
-// func TestAccVcfaVcenter(t *testing.T) {
-// 	// testAccVcfaVcenter(t)
-// 	// doOnceTestAccVcfaVcenter.Do(func() {
-// 	// 	fmt.Println("doOnceTestAccVcfaVcenter.Do")
-// 	// t.Run("TestAccVcfaVcenter", testAccVcfaVcenter)
-// 	testAccVcfaVcenter(t)
-// 	// })
-// }
-
 func TestAccVcfaVcenter(t *testing.T) {
+	testName := "TestAccVcfaVcenter" // Trigerring the test at priority will create incorrect t.Name() value
 	preTestChecks(t)
 	defer postTestChecks(t)
 	skipIfNotSysAdmin(t)
@@ -126,20 +76,21 @@ func TestAccVcfaVcenter(t *testing.T) {
 		"NsxPassword":     testConfig.Tm.NsxManagerPassword,
 		"NsxUrl":          testConfig.Tm.NsxManagerUrl,
 
-		"Testname": t.Name(),
+		"Testname": testName,
 
 		"Tags": "tm",
 	}
 	testParamsNotEmpty(t, params)
 
+	params["FuncName"] = testName
 	configText1 := templateFill(testAccVcfaVcenterStep1, params)
-	params["FuncName"] = t.Name() + "-step2"
+	params["FuncName"] = testName + "-step2"
 	configText2 := templateFill(testAccVcfaVcenterStep2, params)
 
-	params["FuncName"] = t.Name() + "-step3"
+	params["FuncName"] = testName + "-step3"
 	configText3 := templateFill(testAccVcfaVcenterStep3, params)
 
-	params["FuncName"] = t.Name() + "-step4"
+	params["FuncName"] = testName + "-step4"
 	configText4 := templateFill(testAccVcfaVcenterStep4DS, params)
 
 	debugPrintf("#[DEBUG] CONFIGURATION step1: %s\n", configText1)
@@ -158,7 +109,7 @@ func TestAccVcfaVcenter(t *testing.T) {
 				Config: configText1,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("vcfa_vcenter.test", "id"),
-					resource.TestCheckResourceAttr("vcfa_vcenter.test", "name", t.Name()),
+					resource.TestCheckResourceAttr("vcfa_vcenter.test", "name", testName),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "description", ""),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "is_enabled", "true"),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "has_proxy", "false"),
@@ -174,7 +125,7 @@ func TestAccVcfaVcenter(t *testing.T) {
 				Config: configText2,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("vcfa_vcenter.test", "id"),
-					resource.TestCheckResourceAttr("vcfa_vcenter.test", "name", t.Name()+"-rename"),
+					resource.TestCheckResourceAttr("vcfa_vcenter.test", "name", testName+"-rename"),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "is_enabled", "false"),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "description", "description from Terraform"),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "has_proxy", "false"),
@@ -191,7 +142,7 @@ func TestAccVcfaVcenter(t *testing.T) {
 				Config: configText3,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("vcfa_vcenter.test", "id"),
-					resource.TestCheckResourceAttr("vcfa_vcenter.test", "name", t.Name()),
+					resource.TestCheckResourceAttr("vcfa_vcenter.test", "name", testName),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "description", ""),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "is_enabled", "true"),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "has_proxy", "false"),
@@ -286,6 +237,7 @@ data "vcfa_vcenter" "test" {
 // }
 
 func TestAccVcfaVcenterInvalid(t *testing.T) {
+	testName := "TestAccVcfaVcenterInvalid"
 	preTestChecks(t)
 	defer postTestChecks(t)
 	skipIfNotSysAdmin(t)
@@ -311,8 +263,9 @@ func TestAccVcfaVcenterInvalid(t *testing.T) {
 	}
 	testParamsNotEmpty(t, params)
 
+	params["FuncName"] = testName
 	configText1 := templateFill(testAccVcfaVcenterStep1, params)
-	params["FuncName"] = t.Name() + "-step2"
+	params["FuncName"] = testName + "-step2"
 	params["VcenterPassword"] = testConfig.Tm.VcenterPassword
 	configText2 := templateFill(testAccVcfaVcenterStep1, params)
 
@@ -333,7 +286,7 @@ func TestAccVcfaVcenterInvalid(t *testing.T) {
 				Config: configText2,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("vcfa_vcenter.test", "id"),
-					resource.TestCheckResourceAttr("vcfa_vcenter.test", "name", t.Name()),
+					resource.TestCheckResourceAttr("vcfa_vcenter.test", "name", testName),
 					resource.TestCheckResourceAttr("vcfa_vcenter.test", "is_enabled", "true"),
 					resource.TestCheckResourceAttrSet("vcfa_vcenter.test", "cluster_health_status"),
 					resource.TestCheckResourceAttrSet("vcfa_vcenter.test", "is_connected"),
